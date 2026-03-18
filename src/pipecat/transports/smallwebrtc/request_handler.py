@@ -10,7 +10,6 @@ This module provides a client for handling web requests and managing WebRTC conn
 """
 
 import asyncio
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
@@ -18,61 +17,39 @@ from aiortc.sdp import candidate_from_sdp
 from fastapi import HTTPException
 from loguru import logger
 
+from pydantic import BaseModel, Field
 from pipecat.transports.smallwebrtc.connection import IceServer, SmallWebRTCConnection
 
 
-@dataclass
-class SmallWebRTCRequest:
-    """Small WebRTC transport session arguments for the runner.
-
-    Parameters:
-        sdp: The SDP string (Session Description Protocol).
-        type: The type of the SDP, either "offer" or "answer".
-        pc_id: Optional identifier for the peer connection.
-        restart_pc: Optional whether to restart the peer connection.
-        request_data: Optional custom data sent by the customer.
-    """
+class SmallWebRTCRequest(BaseModel):
+    """Small WebRTC transport session arguments for the runner."""
 
     sdp: str
     type: str
-    pc_id: Optional[str] = None
-    restart_pc: Optional[bool] = None
-    request_data: Optional[Any] = None
+    pc_id: Optional[str] = Field(default=None, alias="pcId")
+    restart_pc: Optional[bool] = Field(default=None, alias="restartPc")
+    request_data: Optional[Any] = Field(default=None, alias="requestData")
 
-    @classmethod
-    def from_dict(cls, data: dict):
-        """Accept both snake_case and camelCase for the request_data field."""
-        if "requestData" in data and "request_data" not in data:
-            data["request_data"] = data.pop("requestData")
-        return cls(**data)
+    model_config = {"populate_by_name": True, "extra": "allow"}
 
 
-@dataclass
-class IceCandidate:
-    """The remote ice candidate object received from the peer connection.
-
-    Parameters:
-        candidate: The ice candidate patch SDP string (Session Description Protocol).
-        sdp_mid: The SDP mid for the candidate patch.
-        sdp_mline_index: The SDP mline index for the candidate patch.
-    """
+class IceCandidate(BaseModel):
+    """The remote ice candidate object received from the peer connection."""
 
     candidate: str
-    sdp_mid: str
-    sdp_mline_index: int
+    sdp_mid: Optional[str] = Field(default=None, alias="sdpMid")
+    sdp_mline_index: Optional[int] = Field(default=None, alias="sdpMLineIndex")
+
+    model_config = {"populate_by_name": True, "extra": "allow"}
 
 
-@dataclass
-class SmallWebRTCPatchRequest:
-    """Small WebRTC transport session arguments for the runner.
+class SmallWebRTCPatchRequest(BaseModel):
+    """Small WebRTC transport session arguments for the runner."""
 
-    Parameters:
-        pc_id: Identifier for the peer connection.
-        candidates: A list of ICE candidate patches.
-    """
+    pc_id: str = Field(alias="pcId")
+    candidate: IceCandidate
 
-    pc_id: str
-    candidates: List[IceCandidate]
+    model_config = {"populate_by_name": True, "extra": "allow"}
 
 
 class ConnectionMode(Enum):
@@ -244,11 +221,11 @@ class SmallWebRTCRequestHandler:
         if not peer_connection:
             raise HTTPException(status_code=404, detail="Peer connection not found")
 
-        for c in request.candidates:
-            candidate = candidate_from_sdp(c.candidate)
-            candidate.sdpMid = c.sdp_mid
-            candidate.sdpMLineIndex = c.sdp_mline_index
-            await peer_connection.add_ice_candidate(candidate)
+        c = request.candidate
+        candidate = candidate_from_sdp(c.candidate)
+        candidate.sdpMid = c.sdp_mid
+        candidate.sdpMLineIndex = c.sdp_mline_index
+        await peer_connection.add_ice_candidate(candidate)
 
     async def close(self):
         """Clear the connection map."""

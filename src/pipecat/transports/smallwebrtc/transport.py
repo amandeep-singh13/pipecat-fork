@@ -119,6 +119,13 @@ class RawAudioTrack(AudioStreamTrack):
 
         return future
 
+    def clear_audio(self):
+        """Clear all queued audio chunks and cancel their associated futures."""
+        while self._chunk_queue:
+            _, future = self._chunk_queue.popleft()
+            if future and not future.done():
+                future.cancel()
+
     async def recv(self):
         """Return the next audio frame for WebRTC transmission.
 
@@ -427,6 +434,11 @@ class SmallWebRTCClient:
             self._video_output_track.add_video_frame(frame)
             return True
         return False
+
+    def clear_audio(self):
+        """Clear all queued audio in the output track."""
+        if self._audio_output_track:
+            self._audio_output_track.clear_audio()
 
     async def setup(self, _params: TransportParams, frame):
         """Set up the client with transport parameters.
@@ -858,6 +870,11 @@ class SmallWebRTCOutputTransport(BaseOutputTransport):
             True if the video frame was written successfully, False otherwise.
         """
         return await self._client.write_video_frame(frame)
+
+    async def handle_interruptions(self):
+        """Handle client-side interruptions by clearing audio buffers."""
+        await super().handle_interruptions()
+        self._client.clear_audio()
 
 
 class SmallWebRTCTransport(BaseTransport):

@@ -1012,8 +1012,7 @@ class SarvamTTSService(InterruptibleTTSService):
         """
         await super().start(frame)
 
-        # WebSocket API expects sample rate as string
-        self._speech_sample_rate = str(self.sample_rate)
+        self._speech_sample_rate = self.sample_rate
         await self._connect()
 
     async def stop(self, frame: EndFrame):
@@ -1138,7 +1137,6 @@ class SarvamTTSService(InterruptibleTTSService):
             "output_audio_codec": self._output_audio_codec,
             "output_audio_bitrate": self._output_audio_bitrate,
             "pace": self._settings.pace,
-            "model": self._settings.model,
         }
         if self._settings.pitch is not None:
             config_data["pitch"] = self._settings.pitch
